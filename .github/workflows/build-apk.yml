@@ -1,0 +1,39 @@
+name: Build APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm install
+      - run: npx cap add android
+      - run: npx cap sync android
+      - name: Kunci aplikasi (tanpa izin internet, tanpa backup cloud)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i '/android.permission.INTERNET/d' $M
+          sed -i 's/android:allowBackup="true"/android:allowBackup="false"/' $M
+          if grep -q "android.permission" $M; then echo "Masih ada izin di manifest:"; grep "android.permission" $M; exit 1; fi
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - name: Tampilkan izin akhir di APK (harus kosong)
+        run: |
+          AAPT=$(ls $ANDROID_HOME/build-tools/*/aapt | tail -1)
+          $AAPT dump permissions android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: catatan-rumah-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
